@@ -8,7 +8,7 @@ RUN apk add --no-cache wget && adduser -D -H -u 10001 app
 USER app
 WORKDIR /home/app
 COPY --from=build /out/testgo /usr/local/bin/testgo
-EXPOSE 8080
-ENV PORT=8080
-HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1:8080/up || exit 1
+EXPOSE 80
+ENV PORT=80
+HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1:80/up || exit 1
 CMD ["testgo"]

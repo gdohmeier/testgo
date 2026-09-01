@@ -210,31 +210,18 @@ COPY go.mod main.go ./
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/testgo .
 
 FROM alpine:3.20
-RUN adduser -D -H -u 10001 app
-USER app
-WORKDIR /home/app
-COPY --from=build /out/testgo /usr/local/bin/testgo
-EXPOSE 8080
-ENV PORT=8080
-HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1:8080/up || exit 1
-CMD ["testgo"]
-```
-
-Alpine’s `wget` is available by default in many tags; to be extra safe on first try, use this slightly more portable runtime if `wget` is missing in your base:
-
-```dockerfile
-FROM golang:1.23-alpine AS build
-WORKDIR /src
-COPY go.mod main.go ./
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/testgo .
-
-FROM alpine:3.20
 RUN apk add --no-cache wget && adduser -D -H -u 10001 app
 USER app
 WORKDIR /home/app
 COPY --from=build /out/testgo /usr/local/bin/testgo
-EXPOSE 8080
+# for prod (once appserver) need to use 80
+# EXPOSE 80
+# EXPOSE 80
+# for testing use these ports to avoid conflicts
 ENV PORT=8080
+ENV PORT=8080
+# same as above about ports
+#HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1:80/up || exit 1
 HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1:8080/up || exit 1
 CMD ["testgo"]
 ```
@@ -267,8 +254,8 @@ Check health: `curl -i http://localhost:8080/up` → `200 OK`.
 ### Run with Docker
 
 ```bash
-docker build -t testgo:local .
-docker run --rm -p 8080:8080 testgo:local
+sudo docker build -t testgo:local .
+sudo docker run --rm -p 8080:8080 testgo:local
 ```
 
 ---
@@ -283,13 +270,6 @@ git init
 git add main.go go.mod Dockerfile .dockerignore
 git commit -m "Initial commit: testgo snake web app"
 git branch -M main
-git remote add origin https://github.com/YOUR_GITHUB_USER/testgo.git
-git push -u origin main
-```
-
-SSH variant:
-
-```bash
 git remote add origin git@github.com:YOUR_GITHUB_USER/testgo.git
 git push -u origin main
 ```
@@ -302,15 +282,15 @@ Replace `YOUR_DOCKERHUB_USER` with your Docker Hub username.
 
 ```bash
 docker login
-docker build -t YOUR_DOCKERHUB_USER/testgo:latest .
-docker push YOUR_DOCKERHUB_USER/testgo:latest
+sudo docker build -t YOUR_DOCKERHUB_USER/testgo:latest .
+sudo docker push YOUR_DOCKERHUB_USER/testgo:latest
 ```
 
 Then others can run:
 
 ```bash
-docker pull YOUR_DOCKERHUB_USER/testgo:latest
-docker run --rm -p 8080:8080 YOUR_DOCKERHUB_USER/testgo:latest
+sudo docker pull YOUR_DOCKERHUB_USER/testgo:latest
+sudo docker run --rm -p 8080:8080 YOUR_DOCKERHUB_USER/testgo:latest
 ```
 
 No extra Go modules, no frontend build step — `go build` and `docker build` are enough for a clean first run.
