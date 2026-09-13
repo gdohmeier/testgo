@@ -11,54 +11,104 @@ const gameHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>testgo — Snake</title>
   <style>
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
-      min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 8px;
+      padding: max(12px, env(safe-area-inset-top))
+               max(12px, env(safe-area-inset-right))
+               max(12px, env(safe-area-inset-bottom))
+               max(12px, env(safe-area-inset-left));
       font-family: system-ui, sans-serif;
       background: #111;
       color: #eee;
+      touch-action: manipulation;
     }
-    h1 { margin: 0 0 8px; font-size: 1.4rem; }
-    p { margin: 0 0 12px; color: #aaa; font-size: 0.9rem; }
+    h1 { margin: 0; font-size: clamp(1.1rem, 4vw, 1.4rem); }
+    p { margin: 0; color: #aaa; font-size: clamp(0.75rem, 3vw, 0.9rem); text-align: center; }
     canvas {
+      width: min(92vw, 72vh, 520px);
+      height: auto;
+      aspect-ratio: 1;
       background: #1a1a1a;
       border: 2px solid #3a3;
       image-rendering: pixelated;
+      touch-action: none;
+      max-width: 100%;
     }
-    .bar { margin-top: 10px; font-variant-numeric: tabular-nums; }
+    .bar { font-variant-numeric: tabular-nums; }
     button {
-      margin-top: 10px;
+      min-height: 44px;
+      min-width: 44px;
       padding: 8px 16px;
       background: #2a2;
       color: #111;
       border: 0;
       border-radius: 4px;
       font-weight: 700;
-      cursor: pointer;
+    }
+    .pad {
+      display: none;
+      grid-template-columns: repeat(3, 56px);
+      grid-template-rows: repeat(3, 56px);
+      gap: 8px;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .pad button { font-size: 1.2rem; background: #333; color: #eee; }
+    .pad .up    { grid-column: 2; grid-row: 1; }
+    .pad .left  { grid-column: 1; grid-row: 2; }
+    .pad .right { grid-column: 3; grid-row: 2; }
+    .pad .down  { grid-column: 2; grid-row: 3; }
+    @media (hover: none), (pointer: coarse) {
+      .pad { display: grid; }
+      .hint-keys { display: none; }
     }
   </style>
 </head>
 <body>
   <h1>testgo snake</h1>
-  <p>Arrow keys or WASD. Eat food. Don't hit walls or yourself.</p>
+  <p class="hint-keys">Arrow keys or WASD. Eat food. Don't hit walls or yourself.</p>
+  <p class="hint-touch" hidden>Swipe or use the pad. Don't hit walls or yourself.</p>
   <canvas id="c" width="400" height="400"></canvas>
   <div class="bar">Score: <span id="score">0</span></div>
   <button id="restart" type="button">Restart</button>
+  <div class="pad" aria-label="Direction pad">
+    <button type="button" class="up" data-dir="up">▲</button>
+    <button type="button" class="left" data-dir="left">◀</button>
+    <button type="button" class="right" data-dir="right">▶</button>
+    <button type="button" class="down" data-dir="down">▼</button>
+  </div>
   <script>
     const SIZE = 20, CELLS = 20;
     const canvas = document.getElementById("c");
     const ctx = canvas.getContext("2d");
     const scoreEl = document.getElementById("score");
+    const dirs = {
+      up: { x: 0, y: -1 }, down: { x: 0, y: 1 },
+      left: { x: -1, y: 0 }, right: { x: 1, y: 0 },
+    };
+    const keymap = {
+      ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+      w: "up", s: "down", a: "left", d: "right",
+      W: "up", S: "down", A: "left", D: "right",
+    };
 
     let snake, dir, nextDir, food, score, alive, timer;
+
+    if (window.matchMedia("(hover: none), (pointer: coarse)").matches) {
+      document.querySelector(".hint-touch").hidden = false;
+    }
 
     function randCell() {
       return Math.floor(Math.random() * CELLS);
@@ -71,6 +121,12 @@ const gameHTML = `<!DOCTYPE html>
         ok = !snake.some(s => s.x === x && s.y === y);
       } while (!ok);
       food = { x, y };
+    }
+
+    function setDir(nd) {
+      if (!nd) return;
+      if (nd.x === -dir.x && nd.y === -dir.y) return;
+      nextDir = nd;
     }
 
     function reset() {
@@ -125,21 +181,34 @@ const gameHTML = `<!DOCTYPE html>
       }
     }
 
-    const keymap = {
-      ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
-      ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 },
-      w: { x: 0, y: -1 }, s: { x: 0, y: 1 },
-      a: { x: -1, y: 0 }, d: { x: 1, y: 0 },
-      W: { x: 0, y: -1 }, S: { x: 0, y: 1 },
-      A: { x: -1, y: 0 }, D: { x: 1, y: 0 },
-    };
     window.addEventListener("keydown", (e) => {
-      const nd = keymap[e.key];
-      if (!nd) return;
+      const name = keymap[e.key];
+      if (!name) return;
       e.preventDefault();
-      if (nd.x === -dir.x && nd.y === -dir.y) return;
-      nextDir = nd;
+      setDir(dirs[name]);
     });
+
+    document.querySelector(".pad").addEventListener("pointerdown", (e) => {
+      const btn = e.target.closest("[data-dir]");
+      if (!btn) return;
+      e.preventDefault();
+      setDir(dirs[btn.dataset.dir]);
+    });
+
+    let touchStart = null;
+    canvas.addEventListener("pointerdown", (e) => {
+      touchStart = { x: e.clientX, y: e.clientY };
+    });
+    canvas.addEventListener("pointerup", (e) => {
+      if (!touchStart) return;
+      const dx = e.clientX - touchStart.x;
+      const dy = e.clientY - touchStart.y;
+      touchStart = null;
+      if (Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+      if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? dirs.right : dirs.left);
+      else setDir(dy > 0 ? dirs.down : dirs.up);
+    });
+
     document.getElementById("restart").addEventListener("click", reset);
     reset();
   </script>
